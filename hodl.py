@@ -74,6 +74,26 @@ parser_spend.add_argument('prevouts', nargs='+',
         help='Transaction output')
 parser_spend.add_argument('addr', action='store',
                           help='Address to send the funds too')
+parser_spend.add_argument('--rawtx',
+                          help='Raw hodl transaction hex value')
+
+
+def get_prevout(proxy, outpoint, args, n):
+    if args.rawtx:
+        try:
+            tx = CTransaction.deserialize(binascii.unhexlify(args.rawtx))
+        except binascii.Error as e:
+            args.parser.error('Invalid raw transaction: %s' % e)
+        try:
+            r = tx.vout[n]
+        except IndexError:
+            args.parser.error('Invalid output: %s' % n)
+        return r
+    try:
+        prevout = proxy.gettxout(outpoint)
+    except IndexError:
+        args.parser.error('Outpoint not found: %s' % outpoint)
+    return prevout['txout']
 
 
 def spend_command(args):
@@ -96,13 +116,8 @@ def spend_command(args):
         except ValueError:
             args.parser.error('Invalid output: %s' % prevout)
 
+        prevout = get_prevout(proxy, outpoint, args, n)
 
-        try:
-            prevout = proxy.gettxout(outpoint)
-        except IndexError:
-            args.parser.error('Outpoint %s not found' % outpoint)
-
-        prevout = prevout['txout']
         if prevout.scriptPubKey != scriptPubKey:
             args.parser.error('Outpoint not correct scriptPubKey')
 
